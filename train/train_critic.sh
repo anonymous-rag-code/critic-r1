@@ -1,0 +1,76 @@
+set -x
+
+export CUDA_VISIBLE_DEVICES=0,1
+export WANDB_MODE=offline
+export WANDB_PROJECT='critic-r1'
+export PROJECT_ROOT=${PROJECT_ROOT:-/path/to/project}
+export DATA_DIR=${DATA_DIR:-/path/to/data}
+export REWARD_DIR=${REWARD_DIR:-/path/to/reward_score}
+export TRAIN_FILE=${TRAIN_FILE:-/path/to/train.parquet}
+export VAL_FILE=${VAL_FILE:-/path/to/val.parquet}
+export LORA_PATH=${LORA_PATH:-/path/to/lora_adapter}
+export BASE_MODEL=${BASE_MODEL:-/path/to/base_model}
+export EXPERIMENT_NAME=${EXPERIMENT_NAME:-experiment}
+export include_dashboard=False
+export RAY_raylet_start_wait_time_s=180
+export DISABLE_FLASH_ATTN=1
+export XFORMERS_DISABLE_FLASH_ATTN=1
+export HYDRA_FULL_ERROR=1
+
+export STEP1=false
+export STEP2=true
+
+python3 -m verl.trainer.main_ppo \
+  algorithm.adv_estimator=grpo \
+  trainer.val_before_train=False \
+  data.train_files=${TRAIN_FILE} \
+  data.val_files=${VAL_FILE} \
+  data.train_batch_size=4 \
+  data.max_prompt_length=3192 \
+  data.max_response_length=256 \
+  data.filter_overlong_prompts=True \
+  data.truncation='error' \
+  data.shuffle=False \
+  actor_rollout_ref.model.path=$BASE_MODEL \
+  actor_rollout_ref.model.enable_gradient_checkpointing=True \
+  actor_rollout_ref.model.use_remove_padding=True \
+  actor_rollout_ref.model.lora_rank=16 \
+  actor_rollout_ref.model.lora_alpha=16 \
+  actor_rollout_ref.model.target_modules='all-linear' \
+  +actor_rollout_ref.model.override_config.attn_implementation=eager \
+  actor_rollout_ref.actor.optim.lr=1e-6 \
+  actor_rollout_ref.actor.ppo_mini_batch_size=4 \
+  actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
+  actor_rollout_ref.actor.use_kl_loss=True \
+  actor_rollout_ref.actor.kl_loss_coef=0.003 \
+  actor_rollout_ref.actor.kl_loss_type=low_var_kl \
+  actor_rollout_ref.actor.entropy_coeff=0 \
+  actor_rollout_ref.actor.fsdp_config.param_offload=true \
+  actor_rollout_ref.actor.fsdp_config.optimizer_offload=true \
+  actor_rollout_ref.rollout.dtype=half \
+  actor_rollout_ref.rollout.name=vllm \
+  actor_rollout_ref.rollout.agent.num_workers=1 \
+  actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
+  actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
+  actor_rollout_ref.model.lora_adapter_path=${LORA_PATH} \
+  actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
+  actor_rollout_ref.rollout.n=2 \
+  actor_rollout_ref.rollout.load_format=safetensors \
+  actor_rollout_ref.rollout.layered_summon=true \
+  actor_rollout_ref.rollout.max_model_len=4096 \
+  actor_rollout_ref.rollout.max_num_seqs=1024 \
+  actor_rollout_ref.ref.fsdp_config.param_offload=true \
+  actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
+  algorithm.use_kl_in_reward=False \
+  trainer.critic_warmup=0 \
+  trainer.logger='["console","wandb"]' \
+  trainer.project_name=$WANDB_PROJECT \
+  trainer.experiment_name=$EXPERIMENT_NAME \
+  trainer.n_gpus_per_node=2 \
+  trainer.nnodes=1 \
+  trainer.save_freq=1000 \
+  trainer.test_freq=500 \
+  trainer.total_epochs=5 \
+  +reward.custom_reward_function.path=${REWARD_DIR}/critic_reward.py \
+  +reward.custom_reward_function.name=compute_score \
+  2>&1 | tee ${EXPERIMENT_NAME}.log
