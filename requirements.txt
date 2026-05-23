@@ -52,7 +52,7 @@ fastapi-cli==0.0.24
 fastapi-cloud-cli==0.14.0
 fastar==0.8.0
 filelock==3.25.0
-flash_attn @ file:///home/xiaowh26/xwhsearchr1/verl/flash_attn-2.8.1%2Bcu12torch2.8cxx11abiFALSE-cp312-cp312-linux_x86_64.whl#sha256=15db5bb6524dcbf292c3c116aa4c2fa823b80abff0eb5bc58454107bca1ba0c2
+flash_attn==2.8.1
 flashinfer-python==0.3.1
 frozendict==2.4.7
 frozenlist==1.8.0

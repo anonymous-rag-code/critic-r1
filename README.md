@@ -3,7 +3,7 @@
   <a href="README_CN.md">🇨🇳 中文</a>
 </div>
 
-# Critic-R1: Self-Critiquing QA with Reinforcement Learning
+# CRITIC-R1: Learning Reliable Critics for Retrieval-Augmented Generation
 
 This repository contains the code for training and evaluating a critic model that verifies and refines retrieval-augmented QA outputs.
 
@@ -11,11 +11,11 @@ This repository contains the code for training and evaluating a critic model tha
 
 ### 1. Search-R1 Inference & Retrieval Environment
 
-Our retrieval and inference pipeline is built on top of **Search-R1**. Please follow the setup instructions in the Search-R1 repository:
+The retrieval and inference pipeline is built on top of **Search-R1**. Please follow the setup instructions in the Search-R1 repository:
 
 > [https://github.com/PeterGriffinJin/Search-R1](https://github.com/PeterGriffinJin/Search-R1)
 
-Clone and install Search-R1 following its README. This provides the retrieval server (`http://127.0.0.1:8000/retrieve`) and the base inference utilities used by our `infer/` and `eval/` scripts.
+Clone and install Search-R1 following its README. This provides the retrieval server (`http://127.0.0.1:8000/retrieve`) and the base inference utilities used by the `infer/` and `eval/` scripts.
 
 ### 2. Critic Model Training Environment
 
@@ -27,14 +27,14 @@ conda activate critic-r1
 pip install -r requirements.txt
 ```
 
-If an `environment.yaml` is provided, you can alternatively create the environment with:
+Alternatively, create the environment from the `environment.yml` file:
 
 ```bash
-conda env create -f environment.yaml -n critic-r1
+conda env create -f environment.yml -n critic-r1
 conda activate critic-r1
 ```
 
-Our training pipeline is built on the **VERL** framework. Install VERL following its official guide:
+The training pipeline is built on the **VERL** framework. Install VERL following its official guide:
 
 > [https://github.com/verl-project/verl](https://github.com/verl-project/verl)
 
@@ -42,7 +42,7 @@ VERL should be installed into the same `critic-r1` environment.
 
 ## Critic Training Pipeline
 
-The critic model is trained in two stages (conservative judgment alignment → diagnostic quality alignment). Below is the step-by-step pipeline for generating training data and running the training.
+The critic model is trained in two stages (CJA → DQA). Below is the step-by-step pipeline for generating training data and running the training.
 
 ### Step 1: Generate Trajectories with Context
 
@@ -57,7 +57,7 @@ This produces `hotpotqa_trainset_inference_results_v1.csv` containing questions,
 
 ### Step 2: Generate Critic Annotations via Majority Voting
 
-We provide two annotation scripts — one using the **DeepSeek API** and one using a **local Qwen model**. Both use majority voting over multiple samples to produce robust critic labels.
+Two annotation scripts are provided — one using the **DeepSeek API** and one using a **local Qwen model**. Both use majority voting over multiple samples to produce robust critic labels.
 
 **Option A: DeepSeek API**
 
@@ -117,14 +117,14 @@ export VAL_FILE=./data/critic/val_critic.parquet
 export REWARD_DIR=./train
 export EXPERIMENT_NAME=critic-r1-exp
 
-# Stage 1: Conservative judgment alignment (default)
-# Stage 2: Diagnostic quality alignment
+# Stage 1: CJA (default)
+# Stage 2: DQA
 bash train/train_critic.sh
 ```
 
 The two stages are controlled by environment variables:
-- `STEP1=true` — Conservative judgment alignment (penalizes over-aggressive incorrect judgments)
-- `STEP2=true` — Diagnostic quality alignment (rewards precise location, reason, and fix predictions)
+- `STEP1=true` — CJA (penalizes over-aggressive incorrect judgments)
+- `STEP2=true` — DQA (rewards precise location, reason, and fix predictions)
 
 By default, the script runs Stage 2 only. Set both to `true` to run the full two-stage curriculum.
 
@@ -268,7 +268,7 @@ The stats JSON reports error detection precision/recall, correction success rate
 
 ### Stage 4: Compute Final Metrics
 
-Run the full metric suite (EM, F1, SBERT similarity, LLM judge) on the final outputs:
+Run the full metric suite (F1, SBERT similarity, LLM judge) on the final outputs:
 
 ```bash
 python eval/evaluate_metrics.py \
@@ -299,7 +299,7 @@ python eval/evaluate_metrics.py \
 | `--save_every` | `10` | Save intermediate results every N rows |
 | `--resume` | `False` | Resume from existing output CSV |
 
-The summary JSON reports: EM, F1, Precision, Recall, SBERT cosine similarity, LLM judge accuracy, and (for ASQA) str-EM / str-Hit.
+The summary JSON reports: F1, Precision, Recall, SBERT cosine similarity, LLM judge accuracy.
 
 ## Project Structure
 
@@ -320,11 +320,8 @@ The summary JSON reports: EM, F1, Precision, Recall, SBERT cosine similarity, LL
 │   ├── train_critic.sh     #   PPO training launch script
 │   └── merge_lora.py       #   LoRA adapter extraction
 └── eval/                   # Evaluation
-    ├── evaluate_metrics.py #   EM, F1, SBERT, LLM-Judge metrics
+    ├── evaluate_metrics.py #   F1, SBERT, LLM-Judge metrics
     ├── evaluate_lora_3b.py #   LoRA model evaluation with critic
     └── evaluate_critic_feedback.py  # Critic feedback refinement eval
 ```
 
-## License
-
-[To be added]

@@ -3,7 +3,7 @@
   <a href="README_CN.md">🇨🇳 中文</a>
 </div>
 
-# Critic-R1：基于强化学习的QA自批判模型
+# CRITIC-R1: Learning Reliable Critics for Retrieval-Augmented Generation
 
 本仓库包含训练和评估 critic 模型的代码，该模型用于验证和修正检索增强型 QA 系统的输出。
 
@@ -11,7 +11,7 @@
 
 ### 1. Search-R1 推理与检索环境
 
-我们的检索和推理管线基于 **Search-R1** 构建。请按照 Search-R1 仓库的说明进行安装配置：
+检索和推理流程基于 **Search-R1** 构建。请按照 Search-R1 仓库的说明进行安装配置：
 
 > [https://github.com/PeterGriffinJin/Search-R1](https://github.com/PeterGriffinJin/Search-R1)
 
@@ -27,22 +27,22 @@ conda activate critic-r1
 pip install -r requirements.txt
 ```
 
-如果提供了 `environment.yaml`，也可以使用以下方式创建环境：
+也可以使用 `environment.yml` 文件创建环境：
 
 ```bash
-conda env create -f environment.yaml -n critic-r1
+conda env create -f environment.yml -n critic-r1
 conda activate critic-r1
 ```
 
-我们的训练管线基于 **VERL** 框架构建。请按照 VERL 官方指南安装：
+训练流程基于 **VERL** 框架构建。请按照 VERL 官方指南安装：
 
 > [https://github.com/verl-project/verl](https://github.com/verl-project/verl)
 
 VERL 应安装到同一个 `critic-r1` 环境中。
 
-## Critic 训练管线
+## Critic 训练流程
 
-Critic 模型采用两阶段训练（保守判断对齐 → 诊断质量对齐）。以下是生成训练数据并执行训练的完整流程。
+Critic 模型采用两阶段训练（CJA → DQA）。以下是生成训练数据并执行训练的完整流程。
 
 ### 第一步：生成带上下文的推理轨迹
 
@@ -57,7 +57,7 @@ python supervision/hotpot_train.py \
 
 ### 第二步：通过投票标注生成 Critic 标注
 
-我们提供两种标注脚本——分别使用 **DeepSeek API** 和**本地 Qwen 模型**。两者均使用多轮采样投票机制生成稳健的 critic 标签。
+提供两种标注脚本——分别使用 **DeepSeek API** 和**本地 Qwen 模型**。两者均使用多轮采样投票机制生成稳健的 critic 标签。
 
 **方案 A：DeepSeek API**
 
@@ -117,14 +117,14 @@ export VAL_FILE=./data/critic/val_critic.parquet
 export REWARD_DIR=./train
 export EXPERIMENT_NAME=critic-r1-exp
 
-# 第一阶段：保守判断对齐（默认）
-# 第二阶段：诊断质量对齐
+# 第一阶段：CJA（默认）
+# 第二阶段：DQA
 bash train/train_critic.sh
 ```
 
 两个阶段通过环境变量控制：
-- `STEP1=true` — 保守判断对齐（惩罚过度激进的错误判断）
-- `STEP2=true` — 诊断质量对齐（奖励精确的位置、原因和修复方案预测）
+- `STEP1=true` — CJA（惩罚过度激进的错误判断）
+- `STEP2=true` — DQA（奖励精确的位置、原因和修复方案预测）
 
 默认情况下脚本仅运行第二阶段。将两者均设为 `true` 即可运行完整的二阶段课程训练。
 
@@ -143,7 +143,7 @@ python train/merge_lora.py \
 
 ## 评估
 
-评估管线分为四个阶段：(1) 在 QA 基准上运行推理，(2) 为每条轨迹生成 critic 输出，(3) 应用 critic 反馈修正错误答案，(4) 对原始和修正后的输出计算最终指标。
+评估流程分为四个阶段：(1) 在 QA 基准上运行推理，(2) 为每条轨迹生成 critic 输出，(3) 应用 critic 反馈修正错误答案，(4) 对原始和修正后的输出计算最终指标。
 
 ### 阶段一：QA 基准推理
 
@@ -268,7 +268,7 @@ python eval/evaluate_critic_feedback.py \
 
 ### 阶段四：计算最终指标
 
-对最终输出运行完整指标套件（EM、F1、SBERT 相似度、LLM judge）：
+对最终输出运行完整指标套件（F1、SBERT 相似度、LLM judge）：
 
 ```bash
 python eval/evaluate_metrics.py \
@@ -299,7 +299,7 @@ python eval/evaluate_metrics.py \
 | `--save_every` | `10` | 每 N 行保存中间结果 |
 | `--resume` | `False` | 从已有输出 CSV 续跑 |
 
-摘要 JSON 报告：EM、F1、Precision、Recall、SBERT 余弦相似度、LLM judge 准确率，以及（ASQA 数据集）str-EM / str-Hit。
+摘要 JSON 报告：F1、Precision、Recall、SBERT 余弦相似度、LLM judge 准确率。
 
 ## 项目结构
 
@@ -314,17 +314,14 @@ python eval/evaluate_metrics.py \
 │   ├── hotpot_train.py     #   轨迹 + 上下文生成
 │   ├── llm_as_judge_ds.py  #   基于 DeepSeek 的投票标注
 │   └── llm_as_judge_qwen.py#   基于 Qwen 的投票标注
-├── train/                  # 训练管线
+├── train/                  # 训练流程
 │   ├── gen_critic_train.py #   CSV → parquet 格式转换
 │   ├── critic_reward.py    #   两阶段奖励函数
 │   ├── train_critic.sh     #   PPO 训练启动脚本
 │   └── merge_lora.py       #   LoRA 适配器提取
 └── eval/                   # 评估
-    ├── evaluate_metrics.py #   EM、F1、SBERT、LLM-Judge 指标
+    ├── evaluate_metrics.py #   F1、SBERT、LLM-Judge 指标
     ├── evaluate_lora_3b.py #   带 critic 反馈的 LoRA 模型评估
     └── evaluate_critic_feedback.py  # Critic 反馈修正评估
 ```
 
-## 许可证
-
-[待添加]
